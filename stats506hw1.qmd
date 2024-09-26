@@ -1,0 +1,191 @@
+
+---
+title: "HW1"
+format: pdf
+---
+
+# problem 1
+## problem 1.a
+
+```{r}
+names_file <- "C:/Users/zyc/Desktop/R homework/wine.names" 
+data_file <- "C:/Users/zyc/Desktop/R homework/wine.data"
+attributes <- c("class", "Alcohol", "Malic acid", "Ash", "Alcalinity of ash",
+"Magnesium", "Total phenols", "Flavanoids", "Nonflavanoid phenols", "Proanthocyanins", "Color intensity", "Hue", "OD280/OD315 of diluted wines", "Proline") 
+```
+
+## problem 1.b
+
+```{r}
+attributes<-t(attributes) 
+wine_data <- read.csv(data_file, header = FALSE, sep = ",") 
+names(wine_data)<- attributes 
+count_class1 <- sum(wine_data$class == 1)
+count_class1==59
+count_class2 <- sum(wine_data$class == 2) 
+count_class2==71 
+count_class3 <- sum(wine_data$class == 3) 
+count_class3==48 
+```
+
+all numbers are correct
+
+## problem 1.c
+
+```{r}
+cor <- cor(wine_data$"Alcohol",wine_data$"Color intensity") 
+cor
+```
+ correlation is 0.546 
+```{r}
+wine_class1 <- subset(wine_data,class==1) 
+cor1 <-cor(wine_class1$"Alcohol",wine_class1$"Color intensity") 
+cor1
+```
+ class1 correlation is 0.408 
+```{r}
+wine_class2 <- subset(wine_data,class==2) 
+cor2 <-cor(wine_class2$"Alcohol",wine_class2$"Color intensity") 
+cor2
+```
+ class2 correlation is 0.270 
+```{r}
+wine_class3 <- subset(wine_data,class==3) 
+cor3 <-cor(wine_class3$"Alcohol",wine_class3$"Color intensity") 
+cor3
+```
+ class3 correlation is 0.350 
+ 
+ Class 1 has the highest correlation, class 2 has the lowest
+```{r}
+max_color_row <- which.max(wine_data$"Color intensity") 
+max_alcohol <- wine_data[max_color_row,"Alcohol"] 
+max_alcohol
+```
+the alcohol content is 14.34
+```{r}
+proanthocyanins_higher<- sum(wine_data$Proanthocyanins > wine_data$Ash)  
+per <- proanthocyanins_higher/(count_class1+count_class2+count_class3) 
+per
+```
+the percentage is 8.4%
+
+## problem 1.d
+
+```{r}
+class_averages <- aggregate(. ~ class, data = wine_data, FUN = mean)
+average <- data.frame(sapply(wine_data, mean))
+average <- t(average)
+table_average <- rbind(average, class_averages)
+print(table_average)
+```
+## problem 1.e
+
+```{r}
+t_class1 <- wine_data$"Nonflavanoid phenols"[wine_data$class == 1]
+t_class2 <- wine_data$"Nonflavanoid phenols"[wine_data$class == 2]
+t_class3 <- wine_data$"Nonflavanoid phenols"[wine_data$class == 3]
+t_test_result1 <- t.test(t_class1, t_class2)
+t_test_result2 <- t.test(t_class1, t_class3)
+t_test_result3 <- t.test(t_class2, t_class3)
+t_test_result1$p.value
+t_test_result2$p.value
+t_test_result3$p.value
+```
+the p-values of the t-test results are as above   
+
+
+# problem 2
+## problem 2.a
+```{r}
+a_m <-read.csv("C:/Users/zyc/Desktop/R homework/AskAManager.csv")
+```
+## problem 2.b
+```{r}
+names(a_m) <-c("number","time","age","industry","job","job_additional context","salary","bonus","currency","income_additional_context","country","state","city","work_years_all","work_years_field","education_level","gender","race")
+```
+## problem 2.c
+```{r}
+dim(a_m)
+```
+Before filtering, there are 28062 observations.
+```{r}
+filter1_a_m <-subset(a_m,currency=="USD") 
+dim(filter1_a_m)
+```
+After filtering, there are 23374 observations
+
+## problem 2.d
+
+```{r}
+filter1_a_m <- subset(filter1_a_m, age!="under 18"& work_years_all!="Man"&work_years_all!="Woman"&work_years_field!="College degree"&work_years_field!="White")
+filter2_a_m <- subset(filter1_a_m, work_years_field < work_years_all)
+dim(filter2_a_m)
+# I really don't know how to solve this problem so I use Excel for help
+```
+## problem 2.e
+
+```{r}
+filter3_a_m <- subset(filter2_a_m,salary < 2400000 & salary >1000)
+dim(filter3_a_m )
+```
+data from https://finance.yahoo.com/news/know-im-rich-140000452.html says:
+
+"Additionally, statistics show that the top 2% of the United States population has a net worth of about $2.4 million. On the other hand, the top 5% wealthiest Americans have a net worth of just over $1 million. Therefore, about 2% of the population possesses enough wealth to meet the current definition of being rich."
+
+Final sample size is 23242
+ 
+ 
+# problem 3
+## problem 3.a
+```{r}
+is_palindromic <- function(s)
+  #inputs: s - a number
+  #outputs: True: if x is a Palindromic number,False:if x is NOT a Palindromic number, and the reversed number.
+            
+  {if (!is.numeric(s) ||
+       s < 0){ 
+    break
+    print("Type error")}
+  s <- as.character(s)
+  reversed_s <-  ""
+  for (j in nchar(s):1) {
+    # from the end of s extract number and paste it in reversed_s
+    reversed_s <- paste0(reversed_s, substr(s, j, j))
+  }
+  for (j in 1:nchar(s)) {
+    if (substr(s, j, j) == substr(s, nchar(s) - j + 1, nchar(s) - j + 1)) {
+      next  #for item in s, judge if the number from the 
+    } else 
+      {is_palindrome=FALSE
+      return (list(isPalindromic = is_palindrome, reversed = reversed_s))
+    }
+  }
+  is_palindrome=TRUE
+  return (list(isPalindromic = is_palindrome, reversed = reversed_s))
+}
+```
+## problem 3.b
+
+```{r}
+nextPalindrome <- function(x){
+if (!is.numeric(x) ||
+       x < 0){ 
+    break
+    print("Type error")}
+x <- x+1 
+while (!is_palindromic(x)$isPalindromic){# test if x is a palindromic number
+x <- x+1 
+    }
+return(x)
+}
+```
+## problem 3.c
+```{r}
+nextPalindrome(391)
+nextPalindrome(9928)
+nextPalindrome(19272719)
+nextPalindrome(109)
+nextPalindrome(2)
+```
+# github link:https://github.com/EthanZhang12351/Stats-506.git
