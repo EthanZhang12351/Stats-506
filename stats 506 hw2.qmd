@@ -1,0 +1,201 @@
+---
+title: "HW 2"
+format: pdf
+editor: visual
+---
+## Problem 1.a
+Vercison 1
+```{r}
+#' Function to stimulate game by loops
+#'
+#' @param x The times played in the game
+#' @return The total winning
+game_loop <- function(x){
+  winning <- 0
+  random <- sample(1:6,x,replace = TRUE)
+  for (i in 1:x){
+    result <- random[i]
+    if (result ==3 || result == 5){
+      winning <- winning+2*result
+    }
+    else{
+      winning <- winning-2
+    }
+  }
+return (winning)
+}
+```
+Vercison 2
+```{r}
+#' Function to stimulate game by built-in R vectorized function
+#'
+#' @param x The times played in the game
+#' @return The total winning
+game_vectorized <-function(x){
+  result <- sample(1:6, x, replace = TRUE) 
+  winnings <- ifelse(result == 3 | result == 5, 2 * result, -2)
+  return(sum(winnings))
+}
+```
+version 3
+```{r}
+# I refereed to Chatgpt and created the code on my own
+#' Function to stimulate game by creating a table
+#'
+#' @param x The times played in the game
+#' @return The total winning
+game_table <- function(x){
+  result <- sample(1:6, x, replace = TRUE)
+  result_table <- table(result)
+  winnings <- 0
+  if (3 %in% names(result_table)){
+    winnings <- winnings + sum(result_table["3"]) * 6
+  }
+  if (5 %in% names(result_table)){
+    winnings <- winnings + sum(result_table["5"]) * 10   #count the winnings
+  }
+  winnings <- winnings - sum(result_table[!(names(result_table) %in% c("3", "5"))]) * 2                                            #count the loss
+  return(winnings)
+}
+```
+version 4
+```{r}
+#' Function to stimulate game by using sapply function
+#'
+#' @param x The times played in the game
+#' @return The total winning
+game_apply <- function(x){
+  result <- sample(1:6, x, replace = TRUE)
+  winnings <- sapply(result, function(roll){
+    if (roll == 3 || roll == 5) {
+      return(2 * roll)  
+    } else {
+      return(-2) 
+    }
+  })
+  return(sum(winnings))
+  }
+```
+## problem 1.b&1.c
+```{r}
+set.seed(40)
+game_loop(3)
+set.seed(40)
+game_vectorized(3)
+set.seed(40)
+game_table(3)
+set.seed(40)
+game_apply(3)
+```
+```{r}
+set.seed(40)
+game_loop(3000)
+set.seed(40)
+game_vectorized(3000)
+set.seed(40)
+game_table(3000)
+set.seed(40)
+game_apply(3000)
+```
+ The four versions give the same result
+
+## problem 1.d
+For rolling 1000 times
+```{r}
+library(microbenchmark)
+microbenchmark(
+  loop = game_loop(1000),
+vector = game_vectorized(1000),
+table = game_table(1000),
+apply = game_apply(1000)
+)
+```
+
+For rolling 100000 times
+```{r}
+microbenchmark(
+  loop = game_loop(100000),
+vector = game_vectorized(100000),
+table = game_table(100000),
+apply = game_apply(100000)
+)
+```
+
+Among all for versions, the vectorized method is the fastest while the apply method is the slowest. The efficiency of loop method and table method varies when the rolls become large.
+
+## problem 1.e
+This is not a fair game because by probability theory, the probability of winnning 6 = the probability of winning 10 = $\dfrac{1}{6}$. The probability of losing 2 = $\dfrac{2}{3}$. So the expectation is $6\times \dfrac{1}{6}+ 10 \times \dfrac{1}{6} - 2 \times \dfrac{2}{3}= \dfrac{4}{3}$.
+```{r}
+#' Function to apply the Monte Carlo method
+#'
+#' @param x The times in Monte Carlo stimulation
+#' @return The result
+montecarlo <- function(x){
+return (game_vectorized(x)/x)
+}
+montecarlo(10000)
+```
+From the Monte Carlo simulation, the estimated expectation is also near to $\dfrac{4}{3}$.
+
+## problem 2.a
+```{r}
+car_data <- read.csv("C:/Users/zyc/Desktop/R homework/cars.csv")
+names(car_data) <- c("Height","Length","Width","Driveline",
+                     "Engine_Type","Hybrid","Gears","Transmisson","city_mpg",
+                     "Fuel","Highway_mpg","Classification","ID","Brand",
+                     "model&year","Year","Horsepower","Torque"
+                     )
+
+```
+## problem 2.b
+```{r}
+car_data <- subset(car_data,Fuel=="Gasoline")
+```
+## problem 2.c
+```{r}
+summary(car_data$Highway_mpg)
+hist(car_data$Highway_mpg,breaks=20)
+car_data_new <- subset(car_data,Highway_mpg < 200)
+#By examining the data,  I removed the unreasonable data
+hist(car_data_new$Highway_mpg,breaks=20)
+```
+Before removing, the extreme data may affect the model.After removing,it seems like the distribution of Highway_mpg is a little right-skewed but it is nearly symmetric, which is OK to be used for linear regression model without transforming.
+
+## problem 2.d
+```{r}
+car_data_new$Year <- sub("^(\\d{4}).*", "\\1", car_data_new$Year) #Extract the year from the data 
+mod <- lm(Highway_mpg~ Torque+ Horsepower+ Height+ Length+ Width+
+            as.factor(Year), data=car_data_new)
+summary(mod)
+```
+From the model, when other variables hold and the torque of a car increases, the highway mpg of the car decreases 0.0517 per unit on average.
+
+## problem 2.e
+```{r}
+library(emmeans)
+mod1 <- lm(Highway_mpg~ Torque*Horsepower+ Height+ Length+ Width+
+            as.factor(Year), data=car_data_new)
+hist(car_data_new$Torque)
+hist(car_data_new$Horsepower)
+```
+From the histgram, I choose Torque values from 100 to 500 and three horsepower values:200,300,400
+```{r}
+emmip(mod1,  Horsepower~ Torque, at = list(Torque= 100:500,
+                                           Horsepower= c(200, 300, 400)))
+```
+
+## problem 2.f
+```{r}
+#x <- cbind(1,car_data_new$Torque,car_data_new$Horsepower,car_data_new$Height,car_data_new$Length,car_data_new$Width,as.factor(car_data_new$Year))
+x <- model.matrix(Highway_mpg ~ Torque+Horsepower + Height + Length + Width +
+                    as.factor(Year), data = car_data_new)
+y <- car_data_new$Highway_mpg
+xtx <- t(x)%*% x 
+xtxi <- solve(xtx)  # The inverse of X^T X
+beta <- xtxi %*% t(x) %*% y
+beta
+summary(mod)
+```
+The results are the same
+
+## Github:https://github.com/EthanZhang12351/Stats-506
