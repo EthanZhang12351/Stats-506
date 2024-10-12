@@ -1,0 +1,230 @@
+---
+title: "HW3"
+format: pdf
+editor: visual
+---
+
+# problem 1
+
+## problem 1.a
+```{r}
+# I used Chatgpt to help me with this problem but created the code on my own.
+library(Hmisc)
+```
+
+```{r}
+VIX <- sasxport.get("C:/Users/zyc/Desktop/R homework/VIX_D.XPT")
+DEMO <- sasxport.get("C:/Users/zyc/Desktop/R homework/DEMO_D.XPT")
+VIX_data <- merge(VIX,DEMO, by="seqn",all.x = TRUE)
+print(nrow(VIX_data))
+```
+
+## problem 1.b
+
+```{r}
+library(knitr)
+library(stargazer)
+VIX_data$age_bracket <- cut(VIX_data$ridageyr, breaks = seq(0, 100, by = 10), 
+                        right = FALSE)
+VIX_data$viq220 <- replace(VIX_data$viq220,VIX_data$viq220==9,NA)
+VIX_data$viq220 <- replace(VIX_data$viq220,VIX_data$viq220==1,0)
+VIX_data$viq220 <- replace(VIX_data$viq220,VIX_data$viq220==2,1)
+proportions <- tapply(VIX_data$viq220, VIX_data$age_bracket, mean, na.rm = TRUE)
+kable(proportions, col.names = 
+        c("Age Bracket", "Proportion"))
+```
+
+## probelm 1.c
+
+```{r}
+library(dplyr)
+VIX_data$ridreth1 <- replace(VIX_data$ridreth1,VIX_data$ridreth1==1,
+                             "Mexican American")
+VIX_data$ridreth1 <- replace(VIX_data$ridreth1,VIX_data$ridreth1==2,
+                             "Other Hispanic")
+VIX_data$ridreth1 <- replace(VIX_data$ridreth1,VIX_data$ridreth1==3,
+                             "Non-Hispanic White")
+VIX_data$ridreth1 <- replace(VIX_data$ridreth1,VIX_data$ridreth1==4,
+                             "Non-Hispanic Black")
+VIX_data$ridreth1 <- replace(VIX_data$ridreth1,VIX_data$ridreth1==5,
+                             "Multi-racial")
+names(VIX_data)[names(VIX_data)=='riagendr'] <- 'gender'
+names(VIX_data)[names(VIX_data)=='ridreth1'] <- 'race'
+names(VIX_data)[names(VIX_data)=='indfmpir'] <- 'PIR'
+VIX_data$age <- as.numeric(VIX_data$ridageyr)
+VIX_data <- VIX_data %>%
+mutate(female = ifelse(gender == 2, 1, 0))
+model1 <- glm(viq220 ~ age, 
+              data = VIX_data, family = "binomial")
+model2 <- glm(viq220 ~ age + race + factor(female), 
+              data = VIX_data, family = "binomial")
+model3 <- glm(viq220 ~ age + race + factor(female) + PIR, 
+              data = VIX_data, family = "binomial")
+stargazer::stargazer(model1, model2, model3, type = "text",
+                     apply.coef = exp, 
+                     column.labels = c("Model 1", "Model 2", "Model 3"),
+                     dep.var.labels = "Wears Glasses",
+                     add.lines = list(c("N", nobs(model1), nobs(model2), nobs(model3)),
+                
+c("Pseudo R-squared",                                         
+round(1 - model1$deviance / model1$null.deviance, 3),
+round(1 - model2$deviance / model2$null.deviance, 3),
+round(1 - model3$deviance / model3$null.deviance, 3)),
+c("AIC", round(AIC(model1), 1),                                         
+round(AIC(model2), 1), 
+round(AIC(model3), 1))))
+
+```
+
+## probelm 1.d
+
+```{r}
+odds_ratio_female <- exp(coef(model3)["factor(female)1"])
+wald_test_female <- summary(model3)$coefficients["factor(female)1", "Pr(>|z|)"]
+print(odds_ratio_female)
+print(wald_test_female)
+```
+
+The estimated odds ratio is 0.597 and the wald_test value is 1.96446e-21, so from both tests we can make the conclusion that the odds of females wearing glasses/contacts for distance vision is statistically significantly lower than the odds for males.
+
+# problem 2
+
+## problem 2.a
+
+```{r}
+library(DBI)
+library(RSQLite)
+sakila <- dbConnect(RSQLite::SQLite(), "sakila_master.db")
+dbGetQuery(sakila,"
+SELECT release_year, Count(release_year) AS count 
+FROM film
+GROUP BY release_year
+ORDER BY release_year
+LIMIT 5
+")
+```
+
+All the movies were released in 2006 
+
+## problem 2.b
+
+## Regular R operations:
+Since there aren't useful items in table "film", we seek other tables
+```{r}
+film_cat <- dbGetQuery(sakila, "SELECT * 
+                       FROM film_category")
+max_genre <- which.min(table(film_cat$category_id))
+cat <- dbGetQuery(sakila, "SELECT * 
+                           FROM category")
+cat$name[cat$category_id == max_genre]
+sum(film_cat$category_id == max_genre)
+```
+From the above results, the least common genre is MUsic and the count is 51.
+
+## SQL queries:
+
+```{r}
+dbGetQuery(sakila, "
+ SELECT c.name, COUNT(fc.category_id) AS count
+ FROM film_category as fc
+ INNER JOIN category as c ON fc.category_id = c.category_id
+ GROUP BY c.name
+ ORDER BY count
+ LIMIT 5
+           ")
+```
+
+## problem 2.C
+
+## Regular R operations:
+
+```{r}
+customer <- dbGetQuery(sakila, "SELECT * FROM customer")
+address <- dbGetQuery(sakila, "SELECT * FROM address")
+city <- dbGetQuery(sakila, "SELECT * FROM city")
+country <- dbGetQuery(sakila, "SELECT * FROM country")
+customer_address <- merge(customer, address, by = "address_id",
+                 all.x = TRUE)
+address_city <- merge(customer_address, city, by = "city_id",
+                 all.x = TRUE)
+city_country <- merge(address_city, country, by = "country_id",
+                 all.x = TRUE)
+customer_result <- table(city_country$country)
+customer_result[customer_result==13]
+```
+
+The countries are Argentina and Nigeria 
+
+## SQL queries:
+
+```{r}
+ dbGetQuery(sakila, "
+  SELECT co.country, COUNT(co.country) AS count
+  FROM country AS co
+  RIGHT JOIN city AS ci 
+    ON ci.country_id = co.country_id
+  RIGHT JOIN address AS ad 
+    ON ad.city_id = ci.city_id
+  RIGHT JOIN customer AS cu 
+  ON cu.address_id = ad.address_id
+  GROUP BY co.country_id
+  HAVING count=13
+")
+```
+
+# problem 3
+
+## problem 3.a
+
+```{r}
+us500 <- read.csv("C:/Users/zyc/Desktop/R homework/us-500.csv")
+email <- us500$email
+length(email[grepl(".com", email)])/length(email)
+```
+
+The proportion is 0.734 
+
+## problem 3.b
+
+```{r}
+splited_email <- strsplit(email, "@")
+username <- sapply(splited_email, function(x) x[1])
+# Since the domain and the TLD is not likely to have non alphanumeric character, 
+# we only focus on the username
+non_alnum <- grep("[^a-zA-Z0-9]", username)
+length(non_alnum)/length(username)
+```
+
+The proportion is 0.506 
+
+## problem 3.c
+
+```{r}
+telephone_1 <- us500$phone1
+telephone_2 <- us500$phone2
+area_1 <- substr(telephone_1, 1, 3)
+area_2 <- substr(telephone_2, 1, 3)
+head(sort(table(c(area_1, area_2)), decreasing = TRUE))
+```
+
+The top 5 most common area codes are 973,212,215,410,201 
+
+## problem 3.d
+
+```{r}
+address <- us500$address
+apartments <- address[grepl("[0-9]+$", address)]
+matches <- regexpr("[0-9]+$", apartments)
+numbers <- regmatches(apartments, matches)
+hist(log(as.numeric(numbers)))
+```
+
+## problem 3.e
+
+```{r}
+table(substr(numbers, 1, 1))
+```
+
+This result doesn't obey Benford's law because the digit "1" has almost the same frequency as others, meaning that the data is not real.
+
+## Github:https://github.com/EthanZhang12351/Stats-506
