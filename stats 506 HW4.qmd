@@ -1,0 +1,189 @@
+---
+title: "HW4"
+format: pdf
+editor: visual
+---
+
+# problem 1
+
+## problem 1.a
+
+The depature table:
+
+```{r}
+library(tidyverse)
+library(nycflights13)
+depature_table <- flights %>%
+  inner_join(airports, by = c("origin" = "faa")) %>%
+  group_by(name) %>%
+  summarize(mean_delay = mean(dep_delay, na.rm = TRUE),
+            med_delay = median(dep_delay, na.rm = TRUE),
+            flights_number = n()) %>%
+  filter(flights_number >= 10) %>%  
+  select(name, mean_delay, med_delay) %>%
+  arrange(desc(mean_delay))
+depature_table
+```
+
+The arrival table:
+
+```{r}
+library(knitr)
+arrival_table <- flights %>%
+  inner_join(airports, by = c("dest" = "faa")) %>%
+  group_by(name) %>%
+  summarize(mean_delay = mean(arr_delay, na.rm = TRUE),
+            med_delay = median(arr_delay, na.rm = TRUE),
+            flights_number = n()) %>%
+  filter(flights_number >= 10) %>%  
+  select(name, mean_delay, med_delay) %>%
+  arrange(desc(mean_delay))
+kable(arrival_table, row.names = TRUE) # print all rows
+```
+
+## problem 1.b
+
+```{r}
+fastest_aircraft <- flights %>%
+  left_join(planes, by = "tailnum") %>%
+  mutate(time = air_time,
+         mph = distance/(time/60)) %>%
+  group_by(model) %>%
+  summarize(average_mph = mean(mph, na.rm = TRUE),
+            number_flights = n()) %>%
+  arrange(desc(average_mph)) %>%
+  head(1)
+fastest_aircraft
+```
+
+# problem 2
+
+```{r}
+nnmaps <- read.csv("C:/Users/zyc/Desktop/R homework/chicago-nmmaps.csv")
+#' Function to request the average temperature for a given month.
+#' @param month: Month, either a numeric 1-12 or a string. 
+#' @param year: A numeric year.
+#' @param data: The data set to obtain data from.
+#' @param celsius: Logically indicating whther the results should be in
+#'  celsius. Default FALSE.
+#' @param average_fn: A function with which to compute the mean. 
+#' Default is mean.
+#' @return The average temperature computated by the function average_fn.
+get_temp <- function(month, year, data, average_fn = mean, celsius = FALSE){
+  if(is.numeric(month)){
+    if (is.na(month) || month < 1 || month > 12) {
+    stop("Invalid month.")
+    }}
+  else if (is.character(month)){
+    month_charcter <- c("January", "February", "March", "April", "May", "June", "July",
+                "August", "September", "October", "November", "December")
+    month %>%
+    match.arg(month_charcter) %>%
+      `==`(month_charcter) %>%
+      which -> month
+  } else {
+    stop("Month must be numeric or character")
+  }
+   if(!is.numeric(year)){
+    stop("Invalid year.")
+   }
+   if( year<1997 | year > 2000){
+    stop("Invalid year.")
+   }
+  average_temp <- data %>%
+    select(temp, month_numeric, year) %>%
+    rename(year_col = year) %>% 
+    filter(year_col == year,
+           month_numeric == month) %>%
+    summarize(average_temp = average_fn(temp)) %>%
+    pull(average_temp)              
+     if (celsius) {
+    average_temp <- (average_temp - 32) * 5 / 9
+  }
+  return(average_temp)  
+  }  
+
+```
+
+Test the code:
+
+```{r}
+get_temp("Apr", 1999, data = nnmaps)
+get_temp("Apr", 1999, data = nnmaps, celsius = TRUE)
+get_temp(10, 1998, data = nnmaps, average_fn = median)
+```
+
+```{r , error=TRUE}
+get_temp(13, 1998, data = nnmaps)
+```
+
+```{r , error=TRUE}
+get_temp(2, 2005, data = nnmaps)
+```
+
+```{r , error=TRUE}
+get_temp("November", 1999, data =nnmaps, celsius = TRUE,
+         average_fn = function(x) {
+           x %>% sort -> x
+           x[2:(length(x) - 1)] %>% mean %>% return
+         })
+```
+
+# Problem 3
+
+## Problem 3.a
+
+```{r}
+library(ggplot2)
+library(tidyr)
+art_sales <- read.csv('C:/Users/zyc/Desktop/R homework/df_for_ml_improved_new_market.csv')
+suppressWarnings(art_sales_year <- aggregate(art_sales, 
+                    by = list(art_sales$year),
+                    FUN = mean, na.rm = TRUE))
+ggplot(art_sales, aes(x = year, y = price_usd)) +
+  geom_line(data = art_sales_year, color = "red", linewidth = 1)
+```
+
+From the plot we can see the mean of price_usd has a increasing trend over years.
+
+## problem 3.b
+
+```{r}
+# I used chatgpt for help but created the code on my own
+genre_year <- art_sales[,c("year", grep("^Genre___", 
+                                           names(art_sales), value = TRUE))]
+genre_over_years <- pivot_longer(genre_year,
+    cols = starts_with("Genre___"),   
+    names_to = "genre",               
+    values_to = "count"               
+  )
+genre_data <- subset(genre_over_years, count == 1)
+ggplot(genre_data, aes(x = year ,fill = genre)) +
+  geom_bar(position = 'fill')
+  
+```
+
+This plot shows the distribution of each genre over years.
+
+## Problem 3.c
+
+```{r}
+price_genre_year <- art_sales[, c("year", "price_usd", grep("^Genre___", names(art_sales), value = TRUE))]
+price_over_genre <- pivot_longer(
+  price_genre_year,
+  cols = starts_with("Genre___"),   
+    names_to = "genre",               
+    values_to = "count"
+)
+price_over_genre <- subset(price_over_genre, count == 1)
+genre_price_data <- aggregate(
+  price_usd ~ year + genre,
+  data = price_over_genre,
+  FUN = function(x) mean(x, na.rm = TRUE)
+)
+ggplot(genre_price_data,aes(x = year,y = price_usd, color = genre))+
+  geom_line() +
+  geom_point()
+```
+
+## Github:https://github.com/EthanZhang12351/Stats-506

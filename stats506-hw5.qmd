@@ -1,0 +1,380 @@
+---
+title: "HW5"
+format: html 
+embed-resources: true
+editor: visual
+---
+
+# Problem 1.a
+
+Constructor
+
+```{r}
+# I used chatgpt for some help in this problem
+library(Rcpp)
+rational <- setClass("rational",
+  slots = c(numerator = "numeric",
+    denominator = "numeric"
+  ))
+```
+
+Validator and constuctor
+
+```{r}
+setValidity("rational", function(object){
+  if ((object@denominator == 0)) {
+    stop(paste("Denominator cannot be zero."))
+  }
+  return(TRUE)
+})
+make_rational <- function(numerator, denominator = 1) {
+  if(!is.numeric(numerator) || !is.numeric(denominator) ||  numerator != as.integer(numerator) ||  denominator != as.integer(denominator)){
+    stop("The numerator and denominator must be integer")
+  }
+  return(new("rational", numerator = as.integer(numerator), 
+             denominator = as.integer(denominator)))
+}
+```
+
+Show method
+
+```{r}
+setMethod("show", "rational",
+  function(object) {
+    cat(paste(object@numerator, "/", object@denominator, "\n"))
+    return(invisible(object))
+  }
+)
+```
+
+Simplify method
+
+```{r}
+# define functions first
+cppFunction("
+int gcd(int a, int b) {
+    while (b != 0) {
+        int temp = b;
+        b = a % b;
+        a = temp;
+    }
+    return abs(a);
+}
+")
+```
+
+```{r}
+cppFunction("
+int lcm(int a, int b) {
+    return abs(a * b) / std::gcd(a, b);
+}
+")
+```
+
+```{r}
+setGeneric("simplify", 
+           function(object) {
+             standardGeneric("simplify")})
+
+##' @title Set the simplify method of class `rational`
+##' @param object A `rational` object
+##' @return The simplified rational number
+setMethod("simplify", "rational", function(object) {
+  divisor <- gcd(object@numerator, object@denominator)
+  object@numerator <- as.integer(object@numerator / divisor)
+  object@denominator <- as.integer(object@denominator / divisor)
+  return(object)
+})
+```
+
+quotient method
+
+```{r}
+setGeneric("quotient", 
+           function(object, digits = 8){
+             standardGeneric("quotient")
+             })
+
+##' @title Set the quotient method of class `rational`
+##' @param object A `rational` object
+##' @param digits The digits of the result,the default value is 8
+##' @return The quotient
+setMethod("quotient", "rational", 
+          function(object, digits = 8) {
+  quotient <- object@numerator / object@denominator
+  if (!is.numeric(digits) || length(digits) != 1 || digits <= 0 || digits != as.integer(digits)) {
+    stop("The 'digits' parameter should be a positive integer.")
+  }
+  print(format(quotient, digits = digits))
+  return(quotient)  # Return the full result, print only formatted
+})
+```
+
+Addition
+
+```{r}
+getMethod("+")
+##' @title `rational` arithmetic.
+##'
+##' @param e1 A `rational number`
+##' @param e2 A `rational number`
+##' @return A `rational number` as the sum of e1 and e2
+setMethod("+", signature(e1 = "rational", e2 = "rational"), function(e1, e2) {
+  common_denominator <- lcm(e1@denominator, e2@denominator)
+  new_numerator <- (e1@numerator * (common_denominator / e1@denominator)) +
+                   (e2@numerator * (common_denominator / e2@denominator))
+  simplify(make_rational(new_numerator, common_denominator))
+})
+```
+
+subtraction
+
+```{r}
+getMethod("-")
+##' @title `rational` arithmetic.
+##'
+##' @param e1 A `rational number`
+##' @param e2 A `rational number`
+##' @return A `rational number` as the subtraction of e1 and e2
+setMethod("-", signature(e1 = "rational",
+                         e2 = "rational"),
+          function(e1, e2) {
+            common_denominator <- lcm(e1@denominator, e2@denominator)
+            new_number <- simplify(make_rational
+                                   ((e1@numerator * 
+                                    (common_denominator / e1@denominator)) -
+                   (e2@numerator * 
+                      (common_denominator / e2@denominator))
+                   ,common_denominator))
+            return(new_number)
+          })
+```
+
+multiplication
+
+```{r}
+getMethod("*")
+##' @title `rational` arithmetic.
+##'
+##' @param e1 A `rational number`
+##' @param e2 A `rational number`
+##' @return A `rational number` as the multiplication of e1 and e2
+setMethod("*", signature(e1 = "rational",
+                         e2 = "rational"),
+          function(e1, e2) {
+            new_number <- simplify(make_rational
+                                   (e1@numerator * e2@numerator
+                   ,e1@denominator * e2@denominator))
+            return(new_number)
+          })
+```
+
+division
+
+```{r}
+getMethod("/")
+##' @title `rational` arithmetic.
+##'
+##' @param e1 A `rational number`
+##' @param e2 A `rational number`
+##' @return A `rational number` as the diviation of e1 and e2
+setMethod("/", signature(e1 = "rational",
+                         e2 = "rational"),
+          function(e1, e2) {
+            if (e2@numerator == 0) {
+    stop("Cannot divide by 0.")
+  }
+            new_number <- simplify(make_rational
+                                   (e1@numerator * e2@denominator
+                   ,e1@denominator * e2@numerator))
+            return(new_number)
+          })
+```
+
+## Problem 1.b
+
+```{r , error=TRUE}
+r1 <- make_rational(24,6)
+r2 <- make_rational(7,230)
+r3 <- make_rational(0,4)
+r1
+r3
+r1 + r2
+r1 - r2
+r1 * r2
+r1 / r2
+r1 + r3
+r1 * r3
+r2 / r3
+quotient(r1)
+quotient(r2)
+quotient(r2, digits = 3)
+quotient(r2, digits = 3.14)
+quotient(r2, digits = "avocado")
+q2 <- quotient(r2, digits = 3)
+q2
+quotient(r3)
+simplify(r1)
+simplify(r2)
+simplify(r3)
+```
+
+## Problem 1.c
+
+```{r , error=TRUE}
+r4 <- make_rational(3,0)
+r5 <- make_rational(3.1,0.3)
+r6 <- make_rational('a','b')
+```
+
+#Problem 2 
+## Problem 2.a
+
+```{r}
+library(data.table)
+library(plotly)
+library(tidyr)
+library(ggplot2)
+# I adapted the code from my last homework
+art <- read.csv('C:/Users/zyc/Desktop/R homework/df_for_ml_improved_new_market.csv')
+genre_year <- art[,c("year", grep("^Genre___", 
+                                           names(art), value = TRUE))]
+genre_over_years <- pivot_longer(genre_year,
+    cols = starts_with("Genre___"),   
+    names_to = "genre",               
+    values_to = "count"               
+  )
+genre_data <- subset(genre_over_years, count == 1)
+g <- ggplot(genre_data, aes(x = year ,fill = genre)) +
+  geom_bar(position = 'fill')
+ ggplotly(g) 
+```
+
+## Problem 2.b
+
+```{r}
+# I adapted the code from my last homework
+suppressWarnings(art_sales_year <- aggregate(art, 
+                    by = list(art$year),
+                    FUN = mean, na.rm = TRUE))
+colnames(art_sales_year)[1] <- 'year'
+usd_year <- art_sales_year$price_usd
+price_genre_year <- art[, c("year", "price_usd", grep("^Genre___", 
+names(art), value = TRUE))]
+price_over_genre <- pivot_longer(
+  price_genre_year,
+  cols = starts_with("Genre___"),   
+    names_to = "genre",               
+    values_to = "count"
+)
+price_over_genre <- subset(price_over_genre, count == 1)
+genre_price_data <- aggregate(
+  price_usd ~ year + genre,
+  data = price_over_genre,
+  FUN = function(x) mean(x, na.rm = TRUE)
+)
+data_year <- pivot_wider(
+  data = genre_price_data,
+  names_from = genre,    
+  values_from = price_usd   
+)
+data_overall <- cbind(data_year,usd_year)
+genres <- c("usd_year", "Genre___Others", "Genre___Painting", 
+            "Genre___Photography", "Genre___Print", "Genre___Sculpture")
+p <- plot_ly(data = data_overall)
+for (genre in genres) {
+  p <- p |> add_lines(
+    x = ~year, 
+    y = as.formula(paste0("~", genre)), 
+    visible = ifelse(genre == "usd_year", TRUE, FALSE)  
+  )
+}
+buttons <- lapply(seq_along(genres), function(i) {
+  visibility <- as.list(rep(FALSE, length(genres)))  
+  visibility[[i]] <- TRUE  
+  
+  list(
+    method = "update",
+    args = list(
+      list(visible = visibility),      
+      list(yaxis = list(title = genres[i]))  
+    ),
+    label = genres[i])  
+})
+  
+p <- p |> layout(
+  updatemenus = list(
+    list(
+      y = 1, 
+      buttons = buttons
+    )
+  )
+)
+p
+```
+
+# Problem 3
+
+## Problem 3.a
+
+The departure table:
+
+```{r}
+library(data.table)
+library(nycflights13)
+flights_table <- data.table(flights)
+airborts_table <- data.table(airports)
+merged_table <- merge(flights_table[, faa := origin],
+                airborts_table,
+                by = "faa",
+                all.x = TRUE)
+merged_table[, 
+             .(mean_delay = mean(dep_delay, na.rm = TRUE),
+      med_delay = median(dep_delay, na.rm = TRUE),
+      flights_number = .N), 
+  by = name
+][flights_number >= 10
+  ][, .(name, mean_delay, med_delay)  
+  ][
+  order(-mean_delay)                         
+]
+```
+
+The arrival table:
+
+```{r}
+merged_table_arrival <- merge(flights_table[, faa := dest],
+                airborts_table,
+                by = "faa",
+                all.x = TRUE)
+merged_table_arrival[, 
+             .(mean_delay = mean(arr_delay, na.rm = TRUE),
+      med_delay = median(arr_delay, na.rm = TRUE),
+      flights_number = .N), 
+  by = name
+][flights_number >= 10
+  ][, .(name, mean_delay, med_delay)  
+  ][
+  order(-mean_delay)                         
+]
+```
+
+## Problem 3.b
+
+```{r}
+planes <- data.table(planes)
+merged_plane <- merge(flights,
+                planes,
+                by = "tailnum",
+                all.x = TRUE)
+merged_plane <- as.data.table(merged_plane)
+merged_plane[, 
+             .(model,time = air_time,
+      mph = distance / (air_time / 60))
+][, .(average_mph = mean(mph, na.rm = TRUE),
+      number_flights = .N), 
+  by = model
+][order(-average_mph)                          
+][1]
+```
+## Github:https://github.com/EthanZhang12351/Stats-506
