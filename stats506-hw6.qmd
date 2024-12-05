@@ -1,0 +1,151 @@
+---
+title: "Hw6"
+format: pdf
+editor: visual
+---
+
+#Problem 1.a
+
+```{r}
+library(DBI)
+library(RSQLite)
+lahman <- dbConnect(RSQLite::SQLite(), "C:/Users/zyc/Desktop/R homework/lahman_1871-2022.sqlite")
+fielding <- dbGetQuery(lahman,"
+SELECT *
+FROM fielding
+ ")
+# Compute and aggregate the average RF for each team
+fielding$RF <- with(fielding, 3*(PO + A) / InnOuts)
+fielding <- fielding[!is.na(fielding$RF), ]
+team_RF <- aggregate(RF ~ teamID, data = fielding, FUN = mean)
+team_RF <- team_RF[!is.infinite(team_RF$RF),]
+```
+1.Without any parallel processing
+```{r}
+set.seed(100) # set seed for later comparison
+team_names <- team_RF$teamID
+
+#' Function to estimate the RF of a specific team.
+#' @param data: The dataset to be evaluated.
+#' @param n: The number of bootstrapped samples. 
+#' @return The RF of a specific team.
+bootstrap_team <- function(data, n) {
+  bootstrap_samples <- numeric(n)
+  for (i in seq_len(n)) {
+    sampled_data <- data[sample(1:nrow(data), replace = TRUE), ]
+    bootstrap_samples[i] <- mean(sampled_data$RF, na.rm = TRUE)
+  }
+  return(bootstrap_samples)
+}
+
+#' Function to estimate the RF of each team by bootstrap with basic approach.
+#' @param data: The dataset to be evaluated.
+#' @param n: The number of bootstrapped samples. 
+#' @return The RF of each team.
+bootstrap_basic <- function(data, n) {
+  bootstrap_results <- lapply(team_names, function(team) {
+    team_data <- fielding[fielding$teamID == team, ]
+    bootstrap_team(team_data, n)
+  })
+  names(bootstrap_results) <- team_names
+  return(bootstrap_results)
+}
+```
+2. Using parallel processing 
+```{r}
+# I used chatgpt for help
+library(parallel)
+set.seed(100)
+#' Function to estimate the RF of each team by bootstrap with 
+#' parallel package approach.
+#' @param data: The dataset to be evaluated.
+#' @param n: The number of bootstrapped samples. 
+#' @return The RF of each team.
+bootstrap_parallel <- function(data, n) {
+  cl <- makeCluster(12)
+  clusterExport(cl, varlist = c("fielding", "bootstrap_team"))  
+  bootstrap_results <- parLapply(cl, team_names, function(team) {
+    team_data <- fielding[fielding$teamID == team, ]
+    bootstrap_team(team_data, n)
+  })
+  stopCluster(cl)
+  names(bootstrap_results) <- team_names
+  return(bootstrap_results)
+}
+```
+3.Using futures
+```{r}
+library(future)
+set.seed(100)
+#' Function to estimate the RF of each team by bootstrap with 
+#' future package approach.
+#' @param data: The dataset to be evaluated.
+#' @param n: The number of bootstrapped samples. 
+#' @return The RF of each team.
+bootstrap_future <- function(data, n) {
+  futures <- lapply(team_names, function(team) {
+    team_data <- data[data$teamID == team, ]
+    future(bootstrap_team(team_data, n), seed = TRUE)
+  })
+
+  bootstrap_results <- lapply(futures, value)
+  names(bootstrap_results) <- team_names
+  return(bootstrap_results)
+}
+```
+## Problem 1.b
+```{r}
+compute_sd <- function(bootstrap_results) {
+  means <- sapply(bootstrap_results, mean, na.rm = TRUE)
+  sds <- sapply(bootstrap_results, sd, na.rm = TRUE)
+  return(data.frame(Mean_RF = means, SD_RF = sds, Team = names(means)))
+}
+```
+## Problem 1.c
+I will run every function and compare the time, then print the results 
+1.Without any parallel processing:
+```{r}
+start_time_basic <- Sys.time()
+results_basic <- bootstrap_basic(fielding, n = 1000)
+end_time_basic <- Sys.time()
+time_basic <- end_time_basic - start_time_basic
+```
+
+2.Using parallel processing with the parallel package.
+```{r}
+start_time_parallel <- Sys.time()
+results_parallel <- bootstrap_parallel(fielding, n = 1000)
+end_time_parallel <- Sys.time()
+time_parallel <- end_time_parallel - start_time_parallel
+```
+
+3.Using futures with the future package
+```{r}
+plan(multisession)  
+start_time_future <- Sys.time()
+results_future <- bootstrap_future(fielding, n = 1000)
+end_time_future <- Sys.time()
+time_future <- end_time_future - start_time_future
+plan(sequential) 
+```
+Comparance:
+```{r}
+performance_times <- data.frame(
+  Method = c("Basic computing", "Parallel Package", "Future Package"),
+  Time = c(time_basic, time_parallel, time_future)
+)
+print(performance_times)
+```
+The result:
+```{r}
+stats_basic <- compute_sd(results_basic)
+top_10_basic <- stats_basic[order(-stats_basic$Mean_RF), ][1:10, ]
+stats_parallel <- compute_sd(results_parallel)
+top_10_parallel <- stats_basic[order(-stats_parallel$Mean_RF), ][1:10, ]
+stats_future <- compute_sd(results_future)
+top_10_future <- stats_future[order(-stats_future$Mean_RF), ][1:10, ]
+top_10_basic
+top_10_parallel
+top_10_future
+```
+## Github:https://github.com/EthanZhang12351/Stats-506
