@@ -1,0 +1,141 @@
+---
+title: "final project"
+format: pdf
+editor: visual
+---
+
+Data preprocessing:
+
+```{r}
+library(dplyr)
+# Load data
+covid_data <- read.csv("C:/Users/zyc/Desktop/R homework/States.csv")
+population_data <- read.csv("C:/Users/zyc/Desktop/R homework/us_pop_by_state.csv")
+temperature_data <- read.csv("C:/Users/zyc/Desktop/R homework/average_monthly_temperature_by_state_1950-2022.csv")
+area_data <- read.csv("C:/Users/zyc/Desktop/R homework/area.csv")
+
+# Sort the data by state and date
+covid_data$date <- as.Date(covid_data$date, format="%Y-%m-%d")
+covid_data <- covid_data %>% arrange(state, date)
+cumulative_data <- covid_data %>%
+  group_by(state) %>%
+  summarize(
+    cases = max(cases) - min(cases),
+    deaths = max(deaths) - min(deaths)
+  )
+#Join the population dataset
+merged_data <- cumulative_data %>%
+  inner_join(population_data %>% 
+               select(state, `X2020_census`), by = "state") %>%
+  rename(population = `X2020_census`)
+
+# Calculate infection rate and death rate
+merged_data$confirmed_rate <- merged_data$cases/merged_data$population
+merged_data$death_rate <- merged_data$deaths/merged_data$cases
+
+# Calculate land area of each state
+area_data_new <- area_data %>%
+  select(state, land) %>%
+  mutate(
+    state = gsub("\\?", "", state),
+    land_area = as.numeric(gsub(",", "", land))
+  ) %>%
+  select(state, land_area)
+
+# Select the temperatrure in given time-periopd
+temperature_data <- temperature_data %>%
+  filter((year == 2021 & month >= 11) | (year == 2022 & month <= 2))
+
+# Calculate the mean temperature by state
+# Note that only 48 states' data are in the temperature dataset
+avg_temperature_by_state <- temperature_data %>%
+  group_by(state) %>%
+  summarize(avg_temp = mean(average_temp, na.rm = TRUE))
+
+# Merge all data and calculate population density
+# Note that only 46 states' data are in the final dataset
+final_data <- merged_data %>%
+  inner_join(avg_temperature_by_state, by = "state") %>%
+  inner_join(area_data_new, by = "state")
+final_data$population_density <- final_data$population/final_data$land_area
+
+```
+Make regression models:
+```{r}
+model_1 <- lm(log(death_rate) ~  avg_temp + population_density , data = final_data)
+summary(model_1)
+```
+```{r}
+model_2 <- lm(log(death_rate) ~  avg_temp , data = final_data)
+summary(model_2)
+```
+Ruining T-tests:
+```{r}
+cold_group <- final_data %>% filter(avg_temp <= 32)
+non_cold_group <- final_data %>% filter(avg_temp > 32)
+t_test_temp <- t.test(cold_group$death_rate, non_cold_group$death_rate,alternative = "greater")
+t_test_temp
+```
+```{r}
+density_threshold <- quantile(final_data$population_density, 0.5,na.rm = TRUE)
+high_density_group <- final_data %>% filter(population_density > density_threshold)
+low_density_group <- final_data %>% filter(population_density <= density_threshold)
+t_test_density <- t.test(high_density_group$confirmed_rate, low_density_group$confirmed_rate,alternative = "greater")
+t_test_density
+```
+Making plots:
+```{r}
+library(ggplot2)
+# Divide by temperature
+final_data <- final_data %>%
+  mutate(cold_region = ifelse(avg_temp < 32, "Cold", "Warm"))
+ggplot(final_data, aes(x = cold_region, y = death_rate)) +
+  geom_boxplot() +
+  labs(title = "Mortality Rate by Temperature Group",
+       x = "Region Type",
+       y = "Mortality Rate")
+  
+# Divide by population density
+final_data <- final_data %>%
+  mutate(density_group = ifelse(population_density > density_threshold, "High Density", "Low Density"))
+ggplot(final_data, aes(x = density_group, y = confirmed_rate)) +
+  geom_boxplot() +
+  labs(title = "Confirmed Rate by Population Density Group",
+       x = "Density Group",
+       y = "Confirmed Rate")
+```
+
+Other results:
+```{r}
+library(ggplot2)
+# Divide by temperature, confirmed rate
+final_data <- final_data %>%
+  mutate(cold_region = ifelse(avg_temp < 32, "Cold", "Warm"))
+ggplot(final_data, aes(x = cold_region, y = confirmed_rate)) +
+  geom_boxplot() +
+  labs(title = "Confirmed Rate by Temperature Group",
+       x = "Region Type",
+       y = "Confirmed_Rate")
+# Divide by population density, MORTALITY rate
+final_data <- final_data %>%
+  mutate(density_group = ifelse(population_density > density_threshold, "High Density", "Low Density"))
+ggplot(final_data, aes(x = density_group, y = death_rate)) +
+  geom_boxplot() +
+  labs(title = "Mortality Rate by Population Density Group",
+       x = "Density Group",
+       y = "Mortality Rate")
+```
+```{r}
+# t-test of Temperature and Confirmed rate
+cold_group <- final_data %>% filter(avg_temp <= 32)
+non_cold_group <- final_data %>% filter(avg_temp > 32)
+t_test_temp <- t.test(cold_group$confirmed_rate, non_cold_group$confirmed_rate)
+t_test_temp
+t_test_density <- t.test(high_density_group$death_rate, low_density_group$death_rate)
+t_test_density
+```
+```{r}
+# Poly-regression model
+model <- lm(death_rate ~ poly(avg_temp, 2,raw = TRUE), data = final_data)
+summary(model)
+```
